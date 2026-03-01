@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-feature android:name="android.hardware.type.watch" />
+
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.PlanetaryHours">
+
+        <service
+            android:name=".PlanetaryComplicationService"
+            android:exported="true"
+            android:label="Planetary Hour"
+            android:icon="@mipmap/ic_launcher"
+            android:permission="com.google.android.wearable.permission.BIND_COMPLICATION_PROVIDER">
+            <intent-filter>
+                <action android:name="android.support.wearable.complications.ACTION_COMPLICATION_UPDATE_REQUEST" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.support.wearable.complications.SUPPORTED_TYPES"
+                android:value="RANGED_VALUE" />
+            <meta-data
+                android:name="android.support.wearable.complications.UPDATE_PERIOD_SECONDS"
+                android:value="0" /> <!-- Push-only mode -->
+        </service>
+
+        <service
+            android:name=".PlanetaryTileService"
+            android:exported="true"
+            android:label="Planetary Hours"
+            android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
+            <intent-filter>
+                <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
+            </intent-filter>
+
+            <meta-data
+                android:name="androidx.wear.tiles.metadata.TILE_PREVIEW"
+                android:resource="@drawable/ic_launcher_foreground" />
+        </service>
+
+        <receiver android:name=".PlanetaryUpdateReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.DATE_CHANGED" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="dev.shirk.planetaryhours.LOCATION_UPDATED" />
+            </intent-filter>
+        </receiver>
+    </application>
+
+</manifest>

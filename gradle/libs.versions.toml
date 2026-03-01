@@ -1,0 +1,33 @@
+[versions]
+agp = "9.0.1"
+coreKtx = "1.10.1"
+junit = "4.13.2"
+junitVersion = "1.1.5"
+espressoCore = "3.5.1"
+appcompat = "1.6.1"
+material = "1.10.0"
+wear-tiles = "1.4.1"
+wear-protolayout = "1.3.0"
+wear-watchface = "1.3.0"
+play-services-location = "21.3.0"
+suncalc = "3.11"
+kotlinx-coroutines-play-services = "1.10.1"
+
+[libraries]
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+junit = { group = "junit", name = "junit", version.ref = "junit" }
+androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
+androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
+androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
+material = { group = "com.google.android.material", name = "material", version.ref = "material" }
+androidx-wear-tiles = { group = "androidx.wear.tiles", name = "tiles", version.ref = "wear-tiles" }
+androidx-wear-protolayout = { group = "androidx.wear.protolayout", name = "protolayout", version.ref = "wear-protolayout" }
+androidx-wear-protolayout-material = { group = "androidx.wear.protolayout", name = "protolayout-material", version.ref = "wear-protolayout" }
+androidx-wear-protolayout-expression = { group = "androidx.wear.protolayout", name = "protolayout-expression", version.ref = "wear-protolayout" }
+androidx-wear-watchface-complications-datasource = { group = "androidx.wear.watchface", name = "watchface-complications-data-source-ktx", version.ref = "wear-watchface" }
+play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "play-services-location" }
+kotlinx-coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-play-services", version.ref = "kotlinx-coroutines-play-services" }
+suncalc = { group = "org.shredzone.commons", name = "commons-suncalc", version.ref = "suncalc" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
