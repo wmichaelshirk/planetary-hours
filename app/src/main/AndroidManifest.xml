@@ -18,6 +18,16 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.PlanetaryHours">
 
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.DeviceDefault">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
         <service
             android:name=".PlanetaryComplicationService"
             android:exported="true"
@@ -49,6 +59,8 @@
                 android:name="androidx.wear.tiles.metadata.TILE_PREVIEW"
                 android:resource="@drawable/ic_launcher_foreground" />
         </service>
+
+        <service android:name=".PlanetaryUpdateService" android:exported="false" />
 
         <receiver android:name=".PlanetaryUpdateReceiver" android:exported="true">
             <intent-filter>

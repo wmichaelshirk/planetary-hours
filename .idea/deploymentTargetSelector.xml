@@ -8,12 +8,12 @@
       <SelectionState runConfigName="app.PlanetaryTileService">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
-      <SelectionState runConfigName="Install App">
+      <SelectionState runConfigName="Install app">
         <option name="selectionMode" value="DROPDOWN" />
-        <DropdownSelection timestamp="2026-02-25T19:06:07.894409Z">
+        <DropdownSelection timestamp="2026-03-01T19:27:23.291064400Z">
           <Target type="DEFAULT_BOOT">
             <handle>
-              <DeviceId pluginId="LocalEmulator" identifier="path=/Users/mshirk/.android/avd/Wear_OS_Large_Round_API_30.avd" />
+              <DeviceId pluginId="LocalEmulator" identifier="path=C:\Users\micha\.android\avd\Wear_OS_Large_Round_API_30.avd" />
             </handle>
           </Target>
         </DropdownSelection>

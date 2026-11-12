@@ -1,15 +1,21 @@
 package dev.shirk.planetaryhours
 
 import android.content.BroadcastReceiver
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import androidx.wear.watchface.complications.datasource.ComplicationDataSourceUpdateRequester
+import android.util.Log
 
 class PlanetaryUpdateReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        // Force an update for our specific service
-        val component = ComponentName(context, PlanetaryComplicationService::class.java)
-        ComplicationDataSourceUpdateRequester.create(context, component).requestUpdateAll()
+        Log.i("PlanetaryUpdateReceiver", "Received broadcast: ${intent.action}")
+        
+        // We use a Service to perform the update because requestUpdate can involve binding,
+        // which is not allowed directly from a BroadcastReceiver context.
+        try {
+            val serviceIntent = Intent(context, PlanetaryUpdateService::class.java)
+            context.startService(serviceIntent)
+        } catch (e: Exception) {
+            Log.e("PlanetaryUpdateReceiver", "Failed to start update service", e)
+        }
     }
 }
