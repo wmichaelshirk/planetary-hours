@@ -1,16 +1,6 @@
 package dev.shirk.planetaryhours
 
-import android.Manifest
-import android.annotation.SuppressLint
 import android.content.Context
-import android.content.pm.PackageManager
-import android.location.Location
-import android.util.Log
-import androidx.core.content.ContextCompat
-import com.google.android.gms.location.LocationServices
-import com.google.android.gms.location.Priority
-import com.google.android.gms.location.CurrentLocationRequest
-import kotlinx.coroutines.tasks.await
 import org.shredzone.commons.suncalc.SunTimes
 import java.time.Duration
 import java.time.LocalDateTime
@@ -18,10 +8,6 @@ import java.time.ZoneId
 import java.time.ZonedDateTime
 
 object PlanetaryHourCalculator {
-    private const val TAG = "PlanetaryHourCalc"
-    private const val PREFS_NAME = "location_prefs"
-    private const val KEY_LAT = "lat"
-    private const val KEY_LON = "lon"
 
     val romanNumerals = mapOf(
         1 to "I", 2 to "II", 3 to "III", 4 to "IV", 5 to "V", 6 to "VI",
@@ -31,25 +17,6 @@ object PlanetaryHourCalculator {
     private val chaldeanOrder = listOf(
         Planet.SATURN, Planet.JUPITER, Planet.MARS, Planet.SUN, Planet.VENUS, Planet.MERCURY, Planet.MOON
     )
-
-    fun hasLocationPermission(context: Context): Boolean {
-        return ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
-               ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-    }
-
-    fun saveLocation(context: Context, latitude: Double, longitude: Double) {
-        Log.i(TAG, "Saving location: $latitude, $longitude")
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
-            .putFloat(KEY_LAT, latitude.toFloat())
-            .putFloat(KEY_LON, longitude.toFloat())
-            .commit()
-    }
-
-    private fun getCachedLocation(context: Context): Pair<Double, Double>? {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        if (!prefs.contains(KEY_LAT)) return null
-        return Pair(prefs.getFloat(KEY_LAT, 0f).toDouble(), prefs.getFloat(KEY_LON, 0f).toDouble())
-    }
 
     fun getDayOfWeekPlanet(dayOfWeek: Int): Planet {
         return when (dayOfWeek) {
@@ -64,49 +31,27 @@ object PlanetaryHourCalculator {
         }
     }
 
-    @SuppressLint("MissingPermission")
-    suspend fun calculatePlanetaryHoursForCurrentLocation(context: Context, date: LocalDateTime = LocalDateTime.now()): List<PlanetaryHour>? {
-        val cached = getCachedLocation(context)
-        
-        if (!hasLocationPermission(context)) {
-            return if (cached != null) calculateHours(cached.first, cached.second, date) else null
-        }
-
-        val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
-        var location: Location? = try { fusedLocationClient.lastLocation.await() } catch (e: Exception) { null }
-
-        if (location == null && cached != null) {
-            return calculateHours(cached.first, cached.second, date)
-        }
-
-        if (location == null) {
-            location = try {
-                val request = CurrentLocationRequest.Builder()
-                    .setPriority(Priority.PRIORITY_BALANCED_POWER_ACCURACY)
-                    .setDurationMillis(8000)
-                    .build()
-                fusedLocationClient.getCurrentLocation(request, null).await()
-            } catch (e: Exception) { null }
-        }
-
-        if (location != null) {
-            saveLocation(context, location.latitude, location.longitude)
-            return calculateHours(location.latitude, location.longitude, date)
-        } else if (cached != null) {
-            return calculateHours(cached.first, cached.second, date)
-        }
-
-        return null
+    /**
+     * Pure computation from the cached location; never touches location services, so it is fast and
+     * safe to call from the complication/tile. Returns null if no location has ever been cached.
+     */
+    fun calculateForCachedLocation(context: Context, date: LocalDateTime = LocalDateTime.now()): List<PlanetaryHour>? {
+        val (lat, lon) = PlanetaryLocation.getCached(context) ?: return null
+        return calculateHours(lat, lon, date)
     }
 
-    private fun calculateHours(lat: Double, lon: Double, date: LocalDateTime): List<PlanetaryHour> {
-        val zoneId = ZoneId.systemDefault()
-        val zonedDateTime = date.atZone(zoneId)
-        val midnight = zonedDateTime.toLocalDate().atStartOfDay(zoneId)
+    fun calculateHours(
+        lat: Double,
+        lon: Double,
+        date: LocalDateTime,
+        zoneId: ZoneId = ZoneId.systemDefault()
+    ): List<PlanetaryHour> {
+        val midnight = date.atZone(zoneId).toLocalDate().atStartOfDay(zoneId)
 
         val allHours = mutableListOf<PlanetaryHour>()
-        // Yesterday, Today, Tomorrow covers any possible current planetary hour and a good range for a timeline
-        for (dayOffset in -1L..1L) {
+        // Yesterday's cycle covers the pre-dawn hours; today + 2 more days guarantees at least
+        // ~48h of upcoming hours, so the UI keeps going even if a daily refresh is late or missed.
+        for (dayOffset in -1L..2L) {
             val currentMidnight = midnight.plusDays(dayOffset)
             val times = SunTimes.compute().at(lat, lon).timezone(zoneId).on(currentMidnight).execute()
             
@@ -116,13 +61,18 @@ object PlanetaryHourCalculator {
             val nextDayTimes = SunTimes.compute().at(lat, lon).timezone(zoneId).on(currentMidnight.plusDays(1)).execute()
             val nextSunrise = nextDayTimes.rise ?: currentMidnight.plusDays(1).withHour(6).withMinute(0).withSecond(0).withNano(0)
             
-            allHours.addAll(calculatePlanetaryHours(sunrise.toLocalDateTime(), sunset.toLocalDateTime(), nextSunrise.toLocalDateTime()))
+            allHours.addAll(calculatePlanetaryHours(sunrise, sunset, nextSunrise))
         }
         // Return a distinct, sorted list of hours to avoid overlaps in timeline entries
         return allHours.distinctBy { it.startTime }.sortedBy { it.startTime }
     }
 
-    fun calculatePlanetaryHours(sunrise: LocalDateTime, sunset: LocalDateTime, nextSunrise: LocalDateTime): List<PlanetaryHour> {
+    /**
+     * Splits sunrise→sunset and sunset→nextSunrise into 12 equal parts each. All arithmetic is on
+     * ZonedDateTime, which measures durations and adds time in real elapsed time, so nights that span
+     * a daylight-saving change get correctly sized hours.
+     */
+    fun calculatePlanetaryHours(sunrise: ZonedDateTime, sunset: ZonedDateTime, nextSunrise: ZonedDateTime): List<PlanetaryHour> {
         val dayDuration = Duration.between(sunrise, sunset).toMillis()
         val nightDuration = Duration.between(sunset, nextSunrise).toMillis()
         val dayHourMillis = dayDuration / 12

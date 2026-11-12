@@ -3,57 +3,45 @@ package dev.shirk.planetaryhours
 import android.app.PendingIntent
 import android.content.Intent
 import android.graphics.drawable.Icon
+import androidx.wear.protolayout.expression.DynamicBuilders
 import androidx.wear.watchface.complications.data.*
 import androidx.wear.watchface.complications.datasource.*
 import java.time.Instant
-import java.time.ZoneId
+import java.time.ZonedDateTime
 
 class PlanetaryComplicationService : SuspendingTimelineComplicationDataSourceService() {
 
     override suspend fun onComplicationRequest(request: ComplicationRequest): ComplicationDataTimeline? {
         if (request.complicationType != ComplicationType.RANGED_VALUE) return null
 
-        if (!PlanetaryHourCalculator.hasLocationPermission(this)) {
-            return ComplicationDataTimeline(
-                defaultComplicationData = createPermissionRequestData(),
-                timelineEntries = emptyList()
-            )
+        // Make sure the once-a-day recompute exists even if the app UI is never opened.
+        PlanetaryRefresh.ensureScheduled(this)
+
+        // Reads the cached location only; no location requests from here.
+        val hours = PlanetaryHourCalculator.calculateForCachedLocation(this)
+        if (hours.isNullOrEmpty()) {
+            val data = if (PlanetaryLocation.hasLocationPermission(this)) {
+                createNoDataComplication("No location")
+            } else {
+                createPermissionRequestData()
+            }
+            return ComplicationDataTimeline(defaultComplicationData = data, timelineEntries = emptyList())
         }
 
-        val hours = PlanetaryHourCalculator.calculatePlanetaryHoursForCurrentLocation(this)
-        if (hours == null || hours.isEmpty()) {
-            return ComplicationDataTimeline(
-                defaultComplicationData = createNoDataComplication("No location"),
-                timelineEntries = emptyList()
-            )
-        }
-
-        val zoneId = ZoneId.systemDefault()
         val now = Instant.now()
-        
-        // Include hours starting from the current one
-        val relevantHours = hours.filter { 
-            it.endTime.atZone(zoneId).toInstant().isAfter(now)
-        }
 
-        val timelineEntries = relevantHours.flatMap { hour ->
-            val startInst = hour.startTime.atZone(zoneId).toInstant()
-            val endInst = hour.endTime.atZone(zoneId).toInstant()
-            val durationMillis = (endInst.toEpochMilli() - startInst.toEpochMilli()).coerceAtLeast(1L)
-            
-            // Provide 12 entries per planetary hour (approx every 5-6 minutes)
-            // This ensures the progress ring "progresses" visibly without requiring frequent service updates.
-            (0 until 12).map { segment ->
-                val segmentStart = startInst.plusMillis(segment * durationMillis / 12)
-                val segmentEnd = startInst.plusMillis((segment + 1) * durationMillis / 12)
-                val progress = segment.toFloat() / 12f
-                
+        // One entry per planetary hour (~48+ entries). The watch face switches entries itself at
+        // each hour boundary and animates progress from its own clock, so we don't need to be woken.
+        val timelineEntries = hours
+            .filter { it.endTime.toInstant().isAfter(now) }
+            .map { hour ->
+                val startInst = hour.startTime.toInstant()
+                val endInst = hour.endTime.toInstant()
                 TimelineEntry(
-                    validity = TimeInterval(segmentStart, segmentEnd),
-                    complicationData = createRangedValueDataForHour(hour, progress)
+                    validity = TimeInterval(startInst, endInst),
+                    complicationData = createRangedValueDataForHour(hour, startInst, endInst)
                 )
             }
-        }
 
         return ComplicationDataTimeline(
             defaultComplicationData = createNoDataComplication("No data"),
@@ -91,7 +79,7 @@ class PlanetaryComplicationService : SuspendingTimelineComplicationDataSourceSer
             .build()
     }
 
-    private fun createRangedValueDataForHour(hour: PlanetaryHour, progress: Float): RangedValueComplicationData {
+    private fun createRangedValueDataForHour(hour: PlanetaryHour, startInst: Instant, endInst: Instant): RangedValueComplicationData {
         val displayIndex = ((hour.index - 1) % 12) + 1
         val text = PlanetaryHourCalculator.romanNumerals[displayIndex] ?: "N/A"
         val planetColor = hour.planet.color.toInt()
@@ -99,8 +87,17 @@ class PlanetaryComplicationService : SuspendingTimelineComplicationDataSourceSer
         val intent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
 
+        // progress = (now - start) / duration, evaluated continuously by the watch face.
+        val durationSeconds = (endInst.epochSecond - startInst.epochSecond).coerceAtLeast(1L).toFloat()
+        val dynamicProgress = DynamicBuilders.DynamicInstant.withSecondsPrecision(startInst)
+            .durationUntil(DynamicBuilders.DynamicInstant.platformTimeWithSecondsPrecision())
+            .toIntSeconds()
+            .asFloat()
+            .div(durationSeconds)
+
         return RangedValueComplicationData.Builder(
-            value = progress,
+            dynamicValue = dynamicProgress,
+            fallbackValue = 0f,
             min = 0f,
             max = 1f,
             contentDescription = PlainComplicationText.Builder("Planetary Hour").build()
@@ -116,7 +113,8 @@ class PlanetaryComplicationService : SuspendingTimelineComplicationDataSourceSer
 
     override fun getPreviewData(type: ComplicationType): ComplicationData? {
         if (type != ComplicationType.RANGED_VALUE) return null
-        val hour = PlanetaryHour(Planet.SUN, java.time.LocalDateTime.now(), java.time.LocalDateTime.now().plusHours(1), 1)
+        val now = ZonedDateTime.now()
+        val hour = PlanetaryHour(Planet.SUN, now, now.plusHours(1), 1)
         val displayIndex = ((hour.index - 1) % 12) + 1
         val text = PlanetaryHourCalculator.romanNumerals[displayIndex] ?: "N/A"
         val planetColor = hour.planet.color.toInt()

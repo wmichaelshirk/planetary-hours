@@ -7,6 +7,8 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Optional: lets passive "moved significantly" updates arrive while the app is closed. -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
 
     <application
         android:allowBackup="true"
@@ -60,15 +62,16 @@
                 android:resource="@drawable/ic_launcher_foreground" />
         </service>
 
-        <service android:name=".PlanetaryUpdateService" android:exported="false" />
-
+        <!-- System clock/time zone changes (exempt from implicit-broadcast limits). -->
         <receiver android:name=".PlanetaryUpdateReceiver" android:exported="true">
             <intent-filter>
-                <action android:name="android.intent.action.DATE_CHANGED" />
                 <action android:name="android.intent.action.TIMEZONE_CHANGED" />
-                <action android:name="dev.shirk.planetaryhours.LOCATION_UPDATED" />
+                <action android:name="android.intent.action.TIME_SET" />
             </intent-filter>
         </receiver>
+
+        <!-- Passive location updates, delivered via an explicit PendingIntent. -->
+        <receiver android:name=".LocationUpdateReceiver" android:exported="false" />
     </application>
 
 </manifest>

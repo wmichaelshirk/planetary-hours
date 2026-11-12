@@ -17,9 +17,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
 import java.time.Instant
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 class PlanetaryTileService : TileService() {
@@ -40,19 +38,15 @@ class PlanetaryTileService : TileService() {
         
         serviceScope.launch {
             try {
-                if (!PlanetaryHourCalculator.hasLocationPermission(this@PlanetaryTileService)) {
-                    future.set(createMessageTile("Permission required", "Tap to grant location permission in the app"))
-                } else {
-                    // Increased timeout to 15 seconds to allow for GPS warm-up on watch
-                    val hours = withTimeoutOrNull(15000) {
-                        PlanetaryHourCalculator.calculatePlanetaryHoursForCurrentLocation(this@PlanetaryTileService)
-                    }
-                    
-                    if (hours == null) {
+                PlanetaryRefresh.ensureScheduled(this@PlanetaryTileService)
+                // Reads the cached location only; no location requests from here.
+                val hours = PlanetaryHourCalculator.calculateForCachedLocation(this@PlanetaryTileService)
+                when {
+                    hours != null -> future.set(createTile(hours))
+                    !PlanetaryLocation.hasLocationPermission(this@PlanetaryTileService) ->
+                        future.set(createMessageTile("Permission required", "Tap to grant location permission in the app"))
+                    else ->
                         future.set(createMessageTile("Location Missing", "Could not determine location. Tap to open app."))
-                    } else {
-                        future.set(createTile(hours))
-                    }
                 }
             } catch (e: Exception) {
                 future.set(createMessageTile("Error", e.message ?: "Unknown error"))
@@ -197,12 +191,11 @@ class PlanetaryTileService : TileService() {
     }
 
     private fun createTile(hours: List<PlanetaryHour>): TileBuilders.Tile {
-        val zoneId = ZoneId.systemDefault()
         val timelineBuilder = TimelineBuilders.Timeline.Builder()
         val timeFormatter = DateTimeFormatter.ofPattern("h:mm a")
 
         val now = Instant.now()
-        val startIndex = hours.indexOfFirst { it.endTime.atZone(zoneId).toInstant().isAfter(now) }.coerceAtLeast(0)
+        val startIndex = hours.indexOfFirst { it.endTime.toInstant().isAfter(now) }.coerceAtLeast(0)
         
         // Take a window of 24 planetary hours for the timeline
         val window = hours.drop(startIndex).take(24)
@@ -305,7 +298,7 @@ class PlanetaryTileService : TileService() {
                 .setHorizontalAlignment(LayoutElementBuilders.HORIZONTAL_ALIGN_CENTER)
 
             for (j in 1..3) {
-                val nextHour = hours[(i + j) % hours.size]
+                val nextHour = hours.getOrNull(i + j) ?: break
                 val nextDisplayIndex = ((nextHour.index - 1) % 12) + 1
                 val nextRoman = PlanetaryHourCalculator.romanNumerals[nextDisplayIndex] ?: ""
                 val nextColor = nextHour.planet.color.toInt()
@@ -356,8 +349,8 @@ class PlanetaryTileService : TileService() {
 
             timelineBuilder.addTimelineEntry(TimelineBuilders.TimelineEntry.Builder()
                 .setValidity(TimelineBuilders.TimeInterval.Builder()
-                    .setStartMillis(hour.startTime.atZone(zoneId).toInstant().toEpochMilli())
-                    .setEndMillis(hour.endTime.atZone(zoneId).toInstant().toEpochMilli())
+                    .setStartMillis(hour.startTime.toInstant().toEpochMilli())
+                    .setEndMillis(hour.endTime.toInstant().toEpochMilli())
                     .build())
                 .setLayout(LayoutElementBuilders.Layout.Builder().setRoot(root).build())
                 .build())

@@ -12,6 +12,7 @@ wear-watchface = "1.3.0"
 play-services-location = "21.3.0"
 suncalc = "3.11"
 kotlinx-coroutines-play-services = "1.10.1"
+work = "2.12.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -28,6 +29,7 @@ androidx-wear-watchface-complications-datasource = { group = "androidx.wear.watc
 play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "play-services-location" }
 kotlinx-coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-play-services", version.ref = "kotlinx-coroutines-play-services" }
 suncalc = { group = "org.shredzone.commons", name = "commons-suncalc", version.ref = "suncalc" }
+androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

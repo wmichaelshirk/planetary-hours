@@ -43,6 +43,7 @@ dependencies {
     implementation(libs.play.services.location)
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.suncalc)
+    implementation(libs.androidx.work.runtime.ktx)
     implementation("com.google.guava:guava:31.1-android")
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

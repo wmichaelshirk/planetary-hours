@@ -5,17 +5,14 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 
+/**
+ * Recomputes when the clock or time zone changes (both are exempt from the Android 8+ limits on
+ * manifest-declared receivers). A time zone change is also a good hint that we travelled.
+ */
 class PlanetaryUpdateReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         Log.i("PlanetaryUpdateReceiver", "Received broadcast: ${intent.action}")
-        
-        // We use a Service to perform the update because requestUpdate can involve binding,
-        // which is not allowed directly from a BroadcastReceiver context.
-        try {
-            val serviceIntent = Intent(context, PlanetaryUpdateService::class.java)
-            context.startService(serviceIntent)
-        } catch (e: Exception) {
-            Log.e("PlanetaryUpdateReceiver", "Failed to start update service", e)
-        }
+        // requestRefresh uses the application context, which (unlike a receiver context) may bind.
+        PlanetaryRefresh.requestRefresh(context)
     }
 }
