@@ -43,9 +43,12 @@
             <meta-data
                 android:name="android.support.wearable.complications.SUPPORTED_TYPES"
                 android:value="RANGED_VALUE" />
+            <!-- Safety net: the timeline normally advances on its own, but if the watch face restarts
+                 and loses it, the system re-requests within 15 min instead of showing a stale hour
+                 forever. Each request is a cheap local computation (cached location, no GPS/network). -->
             <meta-data
                 android:name="android.support.wearable.complications.UPDATE_PERIOD_SECONDS"
-                android:value="0" /> <!-- Push-only mode -->
+                android:value="900" />
         </service>
 
         <service
